@@ -1,0 +1,35 @@
+name: Python CI for Customer Data Project
+
+on:
+  push:
+    branches: [ customer_data_code ]
+  pull_request:
+    branches: [ customer_data_code ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check syntax for customer_data.py
+        run: python -m py_compile customer_data.py
+
+      - name: Check syntax for unit_test_code.py
+        run: python -m py_compile unit_test_code.py
+
+      - name: Run unit tests
+        run: python -m unittest unit_test_code.py -v
