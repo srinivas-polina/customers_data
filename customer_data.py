@@ -10,15 +10,13 @@ import random
 #creating Faker object
 fake = Faker()
 
-# --------------------GENERATE NAME--------------------
-
-#defining function to generate first and last name
+# defining function to generate first and last name
 def generate_name():
     first_name = fake.first_name()
     last_name = fake.last_name()
     return first_name, last_name
 
-# I am defining function to generate email
+# defining function to generate email
 def generate_email():
     domains = ["gmail.com", "yahoo.com", "icloud.com", "outlook.com"]
     first_name, last_name = generate_name()
@@ -29,7 +27,7 @@ def generate_email():
     email = first_name.lower() + last_name.lower() + number + "@" + domain
     return first_name, last_name, email
 
-# I am defining function to generate customer data
+# defining function to generate customer data
 def generate_customer_data(num_records):
     
     data = []
@@ -48,7 +46,7 @@ def generate_customer_data(num_records):
 
     return data
 
-# I am defining function to add duplicate records
+#defining function to add duplicate records
 def add_duplicates(data):
     frac_value = random.uniform(0.02, 0.2)
     num_duplicates = int(len(data) * frac_value)
@@ -56,7 +54,7 @@ def add_duplicates(data):
     data = data + duplicate_data
     return data
 
-# -------------------- METRICS --------------------
+#-----METRICS----
 
 def total_count(data):
     return len(data)
@@ -105,17 +103,14 @@ def print_summary(data):
 
 if __name__ == "__main__":
     
-    # I am generating customer data
+    #generating customer data
     data = generate_customer_data(100)
     
-    # I am adding duplicates
+    #adding duplicates
     data = add_duplicates(data)
-    
-    # I am printing summary
+    #printing summary
     print_summary(data)
-
     #converting list to DataFrame
     df = pd.DataFrame(data)
-
     #printing first few rows
     print(df.head(10))
