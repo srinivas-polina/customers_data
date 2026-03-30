@@ -43,50 +43,48 @@ def generate_customer_data(num_records):
         }
         
         data.append(record)
-
-    return data
+    df = pd.DataFrame(data)
+    return df
 
 #defining function to add duplicate records
-def add_duplicates(data):
+def add_duplicates(df):
     frac_value = random.uniform(0.02, 0.2)
-    num_duplicates = int(len(data) * frac_value)
-    duplicate_data = random.sample(data, num_duplicates)
-    data = data + duplicate_data
-    return data
+    num_duplicates = int(len(df) * frac_value)
+    duplicate_rows = df.sample(n=num_duplicates, random_state=None)
+    df = pd.concat([df, duplicate_rows], ignore_index=True)
+    return df
 
 #-----METRICS----
 
-def total_count(data):
-    return len(data)
+def total_count(df):
+    return len(df)
 
-def distinct_count(data):
-    emails = [record["email"] for record in data]
-    unique_emails = set(emails)
-    return len(unique_emails)
+def distinct_count(df):
+    return df["email"].nunique()
 
-def total_duplicates(data):
-    return total_count(data) - distinct_count(data)
+def total_duplicates(df):
+    return total_count(df) - distinct_count(df)
 
 
-def unique_percentage(data):
-    total = total_count(data)
-    unique = distinct_count(data)
+def unique_percentage(df):
+    total = total_count(df)
+    unique = distinct_count(df)
     return (unique / total) * 100
 
 
 
-def duplicate_percentage(data):
-    total = total_count(data)
-    duplicates = total_duplicates(data)
+def duplicate_percentage(df):
+    total = total_count(df)
+    duplicates = total_duplicates(df)
     return (duplicates / total) * 100
 
 
 #function to print summary
-def print_summary(data):
+def print_summary(df):
     
-    total = total_count(data)
-    unique = distinct_count(data)
-    duplicates = total_duplicates(data)
+    total = total_count(df)
+    unique = distinct_count(df)
+    duplicates = total_duplicates(df)
     
     unique_pct = (unique / total) * 100
     duplicate_pct = (duplicates / total) * 100
@@ -101,16 +99,13 @@ def print_summary(data):
 
 # -------------------- MAIN TEST --------------------
 
+# I am starting the main program
 if __name__ == "__main__":
-    
-    #generating customer data
-    data = generate_customer_data(100)
-    
-    #adding duplicates
-    data = add_duplicates(data)
-    #printing summary
-    print_summary(data)
-    #converting list to DataFrame
-    df = pd.DataFrame(data)
-    #printing first few rows
+    # I am generating customer data as DataFrame directly
+    df = generate_customer_data(100)
+    # I am adding duplicates to the DataFrame
+    df = add_duplicates(df)
+    # I am printing summary of the DataFrame
+    print_summary(df)
+    # I am printing first 10 rows of the DataFrame
     print(df.head(10))
