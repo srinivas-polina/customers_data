@@ -1,4 +1,4 @@
-# installing Faker (run this once in your environment, if not faker installed)
+
 #pip install Faker
 import pandas as pd
 #importing Faker to generate fake names
