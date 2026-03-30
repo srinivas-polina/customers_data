@@ -1,7 +1,9 @@
-# I am importing unittest module
+#importing unittest module
 import unittest
 
-# I am importing functions from my main file
+import pandas as pd
+
+#importing functions from my main file
 from customer_data import (
     generate_name,
     generate_email,
@@ -14,7 +16,7 @@ from customer_data import (
     duplicate_percentage
 )
 
-# I am creating test class
+#creating test class
 class TestCustomerData(unittest.TestCase):
 
     # I am testing generate_name function
@@ -51,9 +53,17 @@ class TestCustomerData(unittest.TestCase):
         self.assertFalse(local_part[-4].isdigit())
 
     def test_generate_customer_data(self):
-            data = generate_customer_data(10)
-            self.assertEqual(len(data), 10)
-            self.assertIsInstance(data, list)
+        #generating 10 customer records
+        data = generate_customer_data(10)
+        #checking output is a pandas DataFrame
+        self.assertIsInstance(data, pd.DataFrame)
+        #checking DataFrame has 10 rows
+        self.assertEqual(len(data), 10)
+        #checking required columns exist in DataFrame
+        self.assertListEqual(
+            list(data.columns),
+            ["customer_id", "first_name", "last_name", "email"]
+        )
 
 
     # I am testing add_duplicates function
@@ -108,6 +118,6 @@ class TestCustomerData(unittest.TestCase):
 
         self.assertAlmostEqual(total_pct, 100.0)
 
-# I am running tests
+#running tests
 if __name__ == "__main__":
     unittest.main()
