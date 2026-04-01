@@ -6,7 +6,7 @@ It uses the Faker library to generate realistic names and emails, and includes l
 
 ---
 
-##  Features
+## Features
 
 - Generate random customer records
 - Create realistic emails using Faker
@@ -23,7 +23,7 @@ It uses the Faker library to generate realistic names and emails, and includes l
 
 ##  Tech Stack
 
-- Python 3.13
+- Python 3.10.8
 - Faker (for generating fake data)
 - Built-in Python libraries (`random`)
 

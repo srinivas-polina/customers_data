@@ -1,111 +1,147 @@
-
-#pip install Faker
-import pandas as pd
-#importing Faker to generate fake names
-from faker import Faker
-
-#importing random for randomness
+import os
+import sys
 import random
+import logging
+import time
 
-#creating Faker object
-fake = Faker()
+# --- WINDOWS FIX START ---
+os.environ['PYSPARK_PYTHON'] = sys.executable
+os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
+# --- WINDOWS FIX END ---
 
-# defining function to generate first and last name
-def generate_name():
-    first_name = fake.first_name()
-    last_name = fake.last_name()
-    return first_name, last_name
+from faker import Faker
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType
+from pyspark.sql.functions import rand
 
-# defining function to generate email
-def generate_email():
-    domains = ["gmail.com", "yahoo.com", "icloud.com", "outlook.com"]
-    first_name, last_name = generate_name()
+
+
+logger = logging.getLogger(__name__)
+
+
+class CustomerDataGenerator:
+    def __init__(self):
+        self.fake = Faker()
+        logger.info("CustomerDataGenerator initialized with Faker.")
+
+    def generate_email(self):
+        domains = ["gmail.com", "yahoo.com", "icloud.com", "outlook.com"]
+        first_name = self.fake.first_name()
+        last_name = self.fake.last_name()
+        number = "".join(random.choices("0123456789", k=3))
+        domain = random.choice(domains)
+        email = f"{first_name.lower()}{last_name.lower()}{number}@{domain}"
+        return first_name, last_name, email
     
-    number = "".join(random.choices("0123456789", k=3))
 
-    domain = random.choice(domains)
-    email = first_name.lower() + last_name.lower() + number + "@" + domain
-    return first_name, last_name, email
+    def generate_customer_data(self, spark, num_records):
+        logger.info(f"Starting data generation for {num_records} records.")
+        self.frac_value = random.uniform(0.02, 0.20)
+        self.duplicate_count = int(num_records * self.frac_value)
+        self.original_unique_count = num_records - self.duplicate_count
+        logger.info(f"Data generating completed: {self.original_unique_count} unique, {self.duplicate_count} duplicates.")
 
-# defining function to generate customer data
-def generate_customer_data(num_records):
-    
-    data = []
+        data = []
+        for i in range(self.original_unique_count):
+            data.append(self.generate_email())
+            if (i + 1) % 500 == 0:
+                logger.debug(f"Generated {i + 1} unique records so far...")
 
-    for i in range(num_records):
-        first_name, last_name, email = generate_email()
+        schema = StructType([
+            StructField("first_name", StringType(), True),
+            StructField("last_name", StringType(), True),
+            StructField("email", StringType(), True)
+        ])
+
+        logger.info("Creating Spark DataFrame...")
+        df = spark.createDataFrame(data, schema)
+
+        duplicate_rows = df.orderBy(rand()).limit(self.duplicate_count)
+        df = df.unionByName(duplicate_rows)
+
+        logger.info("Data generation and duplication successful.")
+        return df
+
+    def print_summary(self, df):
+        logger.info("Calculating summary statistics...")
+        total = df.count()
+
+        # Fixed 'frist' typo to 'first' below
+        total_first_names = df.select("first_name").count()
+        unique_first_names = df.select("first_name").distinct().count()
+        duplicate_first_names = total_first_names - unique_first_names
+
+        total_last_names = df.select("last_name").count()
+        unique_last_names = df.select("last_name").distinct().count()
+        duplicate_last_names = total_last_names - unique_last_names
+
+        total_emails = df.select("email").count()
+        unique_emails = df.select("email").distinct().count()
+        duplicate_emails = total_emails - unique_emails
         
-        record = {
-            "customer_id": i,
-            "first_name": first_name,
-            "last_name": last_name,
-            "email": email
-        }
-        
-        data.append(record)
-    df = pd.DataFrame(data)
-    return df
+        unique_rows = df.select("first_name", "last_name", "email").distinct().count()
+        duplicate_rows = total - unique_rows
 
-#defining function to add duplicate records
-def add_duplicates(df):
-    frac_value = random.uniform(0.02, 0.2)
-    num_duplicates = int(len(df) * frac_value)
-    duplicate_rows = df.sample(n=num_duplicates, random_state=None)
-    df = pd.concat([df, duplicate_rows], ignore_index=True)
-    return df
+        unique_pct = (unique_rows / total) * 100
+        duplicate_pct = (duplicate_rows / total) * 100
 
-#-----METRICS----
+        print("\nDuplicate fraction selected:", round(self.frac_value, 4))
+        print("Duplicate percentage selected:", round(self.frac_value * 100, 2), "%")
+        print("Duplicate rows created:", self.duplicate_count)
+        print("Original unique rows generated:", self.original_unique_count)
 
-def total_count(df):
-    return len(df)
+        print("\nTotal records:", total)
+        print("\ntotal first names:", total_first_names)
+        print("Unique first names:", unique_first_names)
+        print("Duplicate first names:",  duplicate_first_names)
 
-def distinct_count(df):
-    return df["email"].nunique()
+        print("\ntotal last names:", total_last_names)
+        print("Unique last names:", unique_last_names)
+        print("Duplicate last names:",  duplicate_last_names)
 
-def total_duplicates(df):
-    return total_count(df) - distinct_count(df)
+        print("\nUnique emails:", unique_emails)
+        print("Duplicate emails:",  duplicate_emails)
+        print("\nUnique percentage:", round(unique_pct, 2), "%")
+        print("Duplicate rows percentage:", round(duplicate_pct, 2), "%")
+        logger.info("Summary printed to console.")
 
-
-def unique_percentage(df):
-    total = total_count(df)
-    unique = distinct_count(df)
-    return (unique / total) * 100
-
-
-
-def duplicate_percentage(df):
-    total = total_count(df)
-    duplicates = total_duplicates(df)
-    return (duplicates / total) * 100
-
-
-#function to print summary
-def print_summary(df):
-    
-    total = total_count(df)
-    unique = distinct_count(df)
-    duplicates = total_duplicates(df)
-    
-    unique_pct = (unique / total) * 100
-    duplicate_pct = (duplicates / total) * 100
-
-    
-    print("\nTotal records:", total)
-    print("Unique records:", unique)
-    print("Unique percentage:", round(unique_pct, 2), "%")
-    print("Duplicate percentage:", round(duplicate_pct, 2), "%")
-    print("\nNumber of duplicated emails:", duplicates)
-
-
-# -------------------- MAIN TEST --------------------
-
-# I am starting the main program
 if __name__ == "__main__":
-    # I am generating customer data as DataFrame directly
-    df = generate_customer_data(100)
-    # I am adding duplicates to the DataFrame
-    df = add_duplicates(df)
-    # I am printing summary of the DataFrame
-    print_summary(df)
-    # I am printing first 10 rows of the DataFrame
-    print(df.head(10))
+    # Configure where to save logs and what level to show
+    logging.basicConfig(
+        level=logging.INFO,
+        format='line %(lineno)d - %(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("app.log"), # Writes to file
+            logging.StreamHandler(sys.stdout) # Writes to terminal
+        ]
+    )
+    
+    start_time = time.perf_counter() #Record Start Time
+    logger.info("Application started.")
+    spark = SparkSession.builder.master("local[*]").appName("CustomerGenerator").getOrCreate()
+    spark.sparkContext.setLogLevel("ERROR")
+
+    if len(sys.argv) > 1:
+        try:
+            num_records = int(sys.argv[1])
+        except ValueError:
+            logger.error(f"Invalid input: '{sys.argv[1]}' is not a number")
+            sys.exit(1)
+    else:
+        logger.warning("No record count provided. Exiting program")
+        spark.stop()
+        sys.exit()
+
+    generator = CustomerDataGenerator()
+    df = generator.generate_customer_data(spark, num_records)
+    generator.print_summary(df)
+    df.show(10, truncate=False)
+    
+    logger.info("Stoping Spark Session")
+    spark.stop()
+    logger.info("Application finished sucessfully")
+    end_time = time.perf_counter()
+    total_duration = end_time - start_time
+    mins, secs = divmod(total_duration, 60)
+    time_format = f"{int(mins):02d}:{int(secs):02d}"
+    logger.info(f"Total Execution Time: {time_format} (MM:SS)")

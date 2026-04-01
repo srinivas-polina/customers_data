@@ -1,123 +1,98 @@
-#importing unittest module
+import os
+import sys
+
 import unittest
 
-import pandas as pd
+import logging
+from pyspark.sql import SparkSession
+from customer_data import CustomerDataGenerator
 
-#importing functions from my main file
-from customer_data import (
-    generate_name,
-    generate_email,
-    generate_customer_data,
-    add_duplicates,
-    total_count,
-    distinct_count,
-    total_duplicates,
-    unique_percentage,
-    duplicate_percentage
+os.environ['PYSPARK_PYTHON'] = sys.executable
+os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
+
+# Configure where to save logs and what level to show
+logging.basicConfig(
+    level=logging.INFO,
+    format='line %(lineno)d - %(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("test_app.log", mode='a'),
+        logging.StreamHandler(sys.stdout)
+    ]
 )
+logger = logging.getLogger(__name__)
 
-#creating test class
-class TestCustomerData(unittest.TestCase):
+TEST_COUNT = 100
 
-    # I am testing generate_name function
-    def test_generate_name(self):
-        first_name, last_name = generate_name()
+class TestCustomerDataGenerator(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        logger.info("---Initializing Spark ---")
+        cls.spark = SparkSession.builder.master("local").getOrCreate()
+        cls.spark.sparkContext.setLogLevel("ERROR")
+
+    def setUp(self):
+        logger.info(f"Running: {self._testMethodName}")
+        self.generator = CustomerDataGenerator()
+        self.df = self.generator.generate_customer_data(self.spark, TEST_COUNT)
+
+    def test_generate_email(self):
+        logger.info("Checking first_name, last_name, email...")
+        first_name, last_name, email = self.generator.generate_email()
 
         self.assertIsInstance(first_name, str)
         self.assertIsInstance(last_name, str)
+        self.assertIsInstance(email, str)
 
         self.assertTrue(len(first_name) > 0)
         self.assertTrue(len(last_name) > 0)
-
-   #testing generate_email function (clean version)
-    def test_generate_email(self):
-        #calling the function
-        first_name, last_name, email = generate_email()
-        #checking email contains first and last name
-        self.assertIn(first_name.lower(), email)
-        self.assertIn(last_name.lower(), email)
-        #checking email contains @
+        self.assertTrue(len(email) > 0)
         self.assertIn("@", email)
-        #checking email ends with valid domain
         self.assertTrue(
             email.endswith("gmail.com") or
             email.endswith("yahoo.com") or
             email.endswith("icloud.com") or
-            email.endswith("outlook.com")
-        )
-        #checking email is not empty
-        self.assertTrue(len(email) > 0)
-        #checking local part ends with exactly 3 digits
+            email.endswith("outlook.com"))
         local_part = email.split("@")[0]
         self.assertTrue(local_part[-3:].isdigit())
         self.assertFalse(local_part[-4].isdigit())
 
+   #
     def test_generate_customer_data(self):
-        #generating 10 customer records
-        data = generate_customer_data(10)
-        #checking output is a pandas DataFrame
-        self.assertIsInstance(data, pd.DataFrame)
-        #checking DataFrame has 10 rows
-        self.assertEqual(len(data), 10)
-        #checking required columns exist in DataFrame
+        logger.info("Verifying DataFrame structure...")
+        self.assertEqual(self.df.count(), TEST_COUNT)
         self.assertListEqual(
-            list(data.columns),
-            ["customer_id", "first_name", "last_name", "email"]
+            self.df.columns,
+            ["first_name", "last_name", "email"]
         )
 
+    def test_duplication_properties(self):
+        logger.info("Verifying duplication logic")
+        self.assertGreaterEqual(self.generator.frac_value, 0.02)
+        self.assertLessEqual(self.generator.frac_value, 0.20)
 
-    # I am testing add_duplicates function
-    def test_add_duplicates(self):
-        data = generate_customer_data(10)
+        total_records = self.generator.original_unique_count + self.generator.duplicate_count
+        self.assertEqual(total_records, TEST_COUNT)
 
-        new_data = add_duplicates(data)
+        unique_count = self.df.distinct().count()
+        actual_duplicates = TEST_COUNT - unique_count
+        self.assertEqual(actual_duplicates, self.generator.duplicate_count)
 
-        # After adding duplicates, count should increase
-        self.assertTrue(len(new_data) >= len(data))
+    @classmethod
+    def tearDownClass(cls):
+        logger.info("--- Stopping Spark ---")
+        cls.spark.stop()
 
-    # I am testing total_count function
-    def test_total_count(self):
-        data = generate_customer_data(5)
-        self.assertEqual(total_count(data), 5)
 
-    # I am testing distinct_count function
-    def test_distinct_count(self):
-        data = generate_customer_data(5)
-        # Initially all emails should be unique
-        self.assertEqual(distinct_count(data), 5)
 
-    #testing total_duplicates function
-    def test_total_duplicates(self):
-        data = generate_customer_data(20)
-        new_data = add_duplicates(data)
-
-        self.assertTrue(total_duplicates(new_data) >= 0)
-    
-    #testing unique_percentage function
-    def test_unique_percentage(self):
-        data = generate_customer_data(20)
-        new_data = add_duplicates(data)
-
-        self.assertTrue(unique_percentage(new_data) >= 0)
-        self.assertTrue(unique_percentage(new_data) <= 100)
-
-        #testing duplicate_percentage function
-    def test_duplicate_percentage(self):
-        data = generate_customer_data(20)
-        new_data = add_duplicates(data)
-
-        self.assertTrue(duplicate_percentage(new_data) >= 0)
-        self.assertTrue(duplicate_percentage(new_data) <= 100)
-    
-    # testing percentage total
-    def test_percentage_total(self):
-        data = generate_customer_data(20)
-        new_data = add_duplicates(data)
-
-        total_pct = unique_percentage(new_data) + duplicate_percentage(new_data)
-
-        self.assertAlmostEqual(total_pct, 100.0)
 
 #running tests
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        try:
+            TEST_COUNT = int(sys.argv.pop())
+            logger.info(f"Custom count detected: Testing with {TEST_COUNT} records.")
+        except ValueError:
+            logger.error(f"Invalid input. Using default: {TEST_COUNT}")
+    
     unittest.main()
