@@ -1,4 +1,4 @@
-import os
+
 import sys
 
 import unittest
@@ -7,8 +7,6 @@ import logging
 from pyspark.sql import SparkSession
 from customer_data import CustomerDataGenerator
 
-os.environ['PYSPARK_PYTHON'] = sys.executable
-os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
 
 # Configure where to save logs and what level to show
 logging.basicConfig(

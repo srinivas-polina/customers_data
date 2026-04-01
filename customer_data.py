@@ -1,19 +1,14 @@
-import os
+
 import sys
 import random
 import logging
 import time
 
-# --- WINDOWS FIX START ---
-os.environ['PYSPARK_PYTHON'] = sys.executable
-os.environ['PYSPARK_DRIVER_PYTHON'] = sys.executable
-# --- WINDOWS FIX END ---
 
 from faker import Faker
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType
 from pyspark.sql.functions import rand
-
 
 
 logger = logging.getLogger(__name__)
