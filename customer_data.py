@@ -3,7 +3,7 @@ import sys
 import random
 from faker import Faker
 from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
+from pyspark.sql.functions import rand
 from pyspark.sql.types import StructType, StructField, StringType
 
 # SETUP LOGGING
@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 class CustomerDataGenerator:
     def __init__(self, spark: SparkSession):
         self.spark = spark
-        # [FIX 1: Use self.schema and fix the StructField typo]
         self.schema = StructType([
             StructField("first_name", StringType(), True),
             StructField("last_name", StringType(), True),
@@ -57,7 +56,7 @@ class CustomerDataGenerator:
         unique_df.cache()
 
         # Create duplicates by sampling
-        duplicate_rows = unique_df.orderBy(F.rand()).limit(duplicate_count)
+        duplicate_rows = unique_df.orderBy(rand()).limit(duplicate_count)
 
         final_df = unique_df.union(duplicate_rows)
         return final_df
