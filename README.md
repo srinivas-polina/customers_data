@@ -21,18 +21,8 @@ It uses the Faker library to generate realistic names and emails, and includes l
 
 ---
 
-##  Tech Stack
+## 🛠️ Tech Stack
+- **Python**: 3.11.14
+- **PySpark**: 3.5.4 (Spark 3.5.x)
+- **Faker**: Latest
 
-- Python 3.10.8
-- Faker (for generating fake data)
-- Built-in Python libraries (`random`)
-
-## Project Structure
-
-```text
-customers_data/
-├── customer_data.py
-├── test_customer_data.py
-├── requirements.txt
-├── README.md
-└── .gitignore
