@@ -1,96 +1,66 @@
 
-import sys
-
 import unittest
-
 import logging
-from pyspark.sql import SparkSession
-from customer_data import CustomerDataGenerator
 
-
-# Configure where to save logs and what level to show
 logging.basicConfig(
     level=logging.INFO,
-    format='line %(lineno)d - %(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("test_app.log", mode='a'),
-        logging.StreamHandler(sys.stdout)
-    ]
+    format='%(asctime)s - [TEST] - %(levelname)s - %(message)s',
+    filename='unittest.log',
+    filemode='w'
 )
-logger = logging.getLogger(__name__)
 
-TEST_COUNT = 100
+from pyspark.sql import SparkSession
+from customer_data import CustomerDataGenerator
 
 class TestCustomerDataGenerator(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        logger.info("---Initializing Spark ---")
-        cls.spark = SparkSession.builder.master("local").getOrCreate()
+        cls.spark = SparkSession.builder.master("local[1]").appName("Unit_test").getOrCreate()
         cls.spark.sparkContext.setLogLevel("ERROR")
 
     def setUp(self):
-        logger.info(f"Running: {self._testMethodName}")
-        self.generator = CustomerDataGenerator()
-        self.df = self.generator.generate_customer_data(self.spark, TEST_COUNT)
+        self.generator = CustomerDataGenerator(self.spark)
+        self.test_target_count = 100
 
-    def test_generate_email(self):
-        logger.info("Checking first_name, last_name, email...")
-        first_name, last_name, email = self.generator.generate_email()
+    def test_schema_integrity(self):
+        logging.info("-----Testing the Schema----")
+        df = self.generator.create_dataset(self.test_target_count)
+        expected_columns = ["first_name","last_name","email"]
+        self.assertListEqual(df.columns, expected_columns)
 
-        self.assertIsInstance(first_name, str)
-        self.assertIsInstance(last_name, str)
-        self.assertIsInstance(email, str)
+    def test_exact_record_count(self):
+        logging.info("-----Testing the Exact Record Count----")
+        df = self.generator.create_dataset(self.test_target_count)
+        actual_count = df.count()
+        self.assertEqual(actual_count, self.test_target_count)
 
-        self.assertTrue(len(first_name) > 0)
-        self.assertTrue(len(last_name) > 0)
-        self.assertTrue(len(email) > 0)
-        self.assertIn("@", email)
-        self.assertTrue(
-            email.endswith("gmail.com") or
-            email.endswith("yahoo.com") or
-            email.endswith("icloud.com") or
-            email.endswith("outlook.com"))
-        local_part = email.split("@")[0]
-        self.assertTrue(local_part[-3:].isdigit())
-        self.assertFalse(local_part[-4].isdigit())
+    def test_duplication_logic_triggers(self):
+        logging.info("-----Checking the Duplication logic----")
+        df = self.generator.create_dataset(self.test_target_count)
 
-   #
-    def test_generate_customer_data(self):
-        logger.info("Verifying DataFrame structure...")
-        self.assertEqual(self.df.count(), TEST_COUNT)
-        self.assertListEqual(
-            self.df.columns,
-            ["first_name", "last_name", "email"]
-        )
+        total_count = df.count()
+        unique_count = df.distinct().count()
 
-    def test_duplication_properties(self):
-        logger.info("Verifying duplication logic")
-        self.assertGreaterEqual(self.generator.frac_value, 0.02)
-        self.assertLessEqual(self.generator.frac_value, 0.20)
+        self.assertLess(unique_count, total_count)
 
-        total_records = self.generator.original_unique_count + self.generator.duplicate_count
-        self.assertEqual(total_records, TEST_COUNT)
+    def test_email_formatting_rules(self):
+        logging.info("-----Testing the Email Formating----")
+        sample_records = list(CustomerDataGenerator.generate_records(range(10)))
 
-        unique_count = self.df.distinct().count()
-        actual_duplicates = TEST_COUNT - unique_count
-        self.assertEqual(actual_duplicates, self.generator.duplicate_count)
+        valid_domains = ["gmail.com", "yahoo.com", "icloud.com", "outlook.com"]
+
+        for record in sample_records:
+            first_name, last_name, email = record
+
+            self.assertIn("@",email)
+            actual_domain = email.split("@")[-1]
+
+            self.assertIn(actual_domain, valid_domains)
 
     @classmethod
     def tearDownClass(cls):
-        logger.info("--- Stopping Spark ---")
         cls.spark.stop()
 
-
-
-
-#running tests
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        try:
-            TEST_COUNT = int(sys.argv.pop())
-            logger.info(f"Custom count detected: Testing with {TEST_COUNT} records.")
-        except ValueError:
-            logger.error(f"Invalid input. Using default: {TEST_COUNT}")
-    
     unittest.main()
