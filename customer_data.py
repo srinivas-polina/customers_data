@@ -6,7 +6,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import rand
 from pyspark.sql.types import StructType, StructField, StringType
 
-# SETUP LOGGING
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
