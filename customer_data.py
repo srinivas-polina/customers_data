@@ -9,7 +9,7 @@ from pyspark.sql.types import StructType, StructField, StringType
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler("app.log"),
         logging.StreamHandler(sys.stdout)
@@ -30,14 +30,13 @@ class CustomerDataGenerator:
     @staticmethod
     def generate_records(items):
         fake = Faker()
-        # [FIX 3: Move random logic INSIDE the loop so every email is different]
         domains = ["gmail.com", "yahoo.com", "icloud.com", "outlook.com"]
         for _ in items:
             first_name = fake.first_name()
             last_name = fake.last_name()
             number = "".join(random.choices("0123456789", k=3))
             domain = random.choice(domains)
-            # Fix: correctly format the email string
+
             email = f"{first_name.lower()}.{last_name.lower()}{number}@{domain}"
             yield (first_name, last_name, email)
 
@@ -69,21 +68,32 @@ class CustomerDataGenerator:
         overall_unique = df.distinct().count()
         overall_duplicates = total - overall_unique
         
-        # [FIX 6: Use 'first_name' to match your schema]
+        
         unique_first_names = df.select("first_name").distinct().count()
         unique_last_names = df.select("last_name").distinct().count()
         unique_emails = df.select("email").distinct().count()
-
+        
         logger.info("Analysis Completed")
+        logger.info(f"Total Records: {total}")
+        logger.info(f"Overall Unique Records: {overall_unique}")
+        logger.info(f"Overall Duplicate Records: {overall_duplicates}")
+        logger.info(f"Unique First Names: {unique_first_names}")
+        logger.info(f"Unique Last Names: {unique_last_names}")
+        logger.info(f"Unique Emails: {unique_emails}")
 
-        print(f"\nOverall Total : {total:} \nOverall Unique : {overall_unique:} \nOverall Duplicates : {overall_duplicates}")
-        print(f"\nUnique First Names: {unique_first_names:} \nUnique Last Names: {unique_last_names:} \nUnique Emails: {unique_emails:}\n")
+        return{
+            "total": total,
+            "overall_unique": overall_unique,
+            "overall_duplicates": overall_duplicates,
+            "unique_first_names": unique_first_names,
+            "unique_last_names": unique_last_names,
+            "unique_emails": unique_emails
+            }
 
 def main():
     # Standard Spark Startup
     spark = SparkSession.builder.appName("CustomerData").getOrCreate()
     spark.sparkContext.setLogLevel("WARN") # Keeps the console clean
-
     
     if len(sys.argv) < 2:
         logger.error("Usage: python script.py <num_records>")
@@ -96,7 +106,9 @@ def main():
 
     customers_data = CustomerDataGenerator(spark)
     customers_df = customers_data.create_dataset(num_records)
-    customers_data.analyze(customers_df)
+    analysis_result = customers_data.analyze(customers_df)
+    for key, value in analysis_result.items():
+        print(f"{key}: {value}")
 
     spark.stop()
 
